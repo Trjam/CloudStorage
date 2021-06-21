@@ -5,7 +5,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Server {
-   // TODO: 14.06.2021
+    // TODO: 14.06.2021
     // организовать корректный вывод статуса
     // подумать почему так реализован цикл в ClientHandler
     public Server() {
