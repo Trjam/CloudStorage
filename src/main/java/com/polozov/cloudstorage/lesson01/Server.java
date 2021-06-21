@@ -7,7 +7,10 @@ import java.util.concurrent.Executors;
 public class Server {
 	// TODO: 14.06.2021
 	// организовать корректный вывод статуса
+	// пока мало вариантов, думается свитч неплохо смотрелся бы...
+
 	// подумать почему так реализован цикл в ClientHandler
+	// ибо делим файл на размер буфера, получаем количество циклов, сколько раз надо прочитать полный буфер + 1 проход на неполный буфер
 	public Server() {
 		ExecutorService service = Executors.newFixedThreadPool(4);
 		try (ServerSocket server = new ServerSocket(5678)){
