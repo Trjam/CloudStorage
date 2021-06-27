@@ -10,37 +10,20 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
 public class NioTelnetServer {
-    private static String userName = "";
-    private static Path userPath;
-    private static Path currentPath;
-    private static final String LS_COMMAND = "\tls      view all files from current directory\n\r";
-    private static final String MKDIR_COMMAND = "\tmkdir [path]directory        create new directory\n\r";
-    private static final String TOUCH_COMMAND = "\ttouch [path]filename     create new file\n\r";
-    private static final String CHANGENICK_COMMAND = "\tchangenick nickname     change your nickname\n\r";
-    private static final String CD_COMMAND = "\tcd [path]directory      change directory\n\r";
-    private static final String RM_COMMAND = "\trm [path]filename | directory       remove file or directory\n\r";
-    private static final String COPY_COMMAND = "\tcope source target        copy file or directory\n\r";
-    private static final String CAT_COMMAND = "\tcat filename       view test file\n\r";
+    private static final String LS_COMMAND = "\tls     view all files from current directory";
+    private static final String MKDIR_COMMAND = "\tmkdir  view all files from current directory";
 
     private final ByteBuffer buffer = ByteBuffer.allocate(512);
 
-    private Map<String, SocketAddress> clients = new HashMap<>();
+    private Map<SocketAddress, String> clients = new HashMap<>();
 
     public NioTelnetServer() throws Exception {
-        // имхо, тут лучше мапа с именем юзера в качестве ключа зашла, дабы ники не повторялись и не было бы проблем
-        // с отображением чужого хранилища + пишем в мапу адрес, с которого зашел клиент последний раз
-        clients.put("User1", null);
-        clients.put("User2", null);
-        clients.put("User3", null);
-
         ServerSocketChannel server = ServerSocketChannel.open();
         server.bind(new InetSocketAddress(5679));
         server.configureBlocking(false);
@@ -65,14 +48,12 @@ public class NioTelnetServer {
     }
 
     private void handleAccept(SelectionKey key, Selector selector) throws IOException {
-        userName = "";
         SocketChannel channel = ((ServerSocketChannel) key.channel()).accept();
         channel.configureBlocking(false);
         System.out.println("Client connected. IP:" + channel.getRemoteAddress());
         channel.register(selector, SelectionKey.OP_READ, "skjghksdhg");
-        channel.write(ByteBuffer.wrap("Hello user!\n\r".getBytes(StandardCharsets.UTF_8)));
-        channel.write(ByteBuffer.wrap("Enter --help for support info\n\r".getBytes(StandardCharsets.UTF_8)));
-        channel.write(ByteBuffer.wrap("Before start, enter your nickname please\n\r".getBytes(StandardCharsets.UTF_8)));
+        channel.write(ByteBuffer.wrap("Hello user!\n".getBytes(StandardCharsets.UTF_8)));
+        channel.write(ByteBuffer.wrap("Enter --help for support info".getBytes(StandardCharsets.UTF_8)));
     }
 
 
@@ -80,10 +61,11 @@ public class NioTelnetServer {
         SocketChannel channel = (SocketChannel) key.channel();
         SocketAddress client = channel.getRemoteAddress();
         int readBytes = channel.read(buffer);
+
         if (readBytes < 0) {
             channel.close();
             return;
-        } else if (readBytes == 0) {
+        } else  if (readBytes == 0) {
             return;
         }
 
@@ -109,140 +91,11 @@ public class NioTelnetServer {
             String command = sb.toString()
                     .replace("\n", "")
                     .replace("\r", "");
-
-            if (userName.isEmpty()) {
-                setUser(command, client);
-            } else if ("--help".equals(command)) {
+            if ("--help".equals(command)) {
                 sendMessage(LS_COMMAND, selector, client);
                 sendMessage(MKDIR_COMMAND, selector, client);
-                sendMessage(TOUCH_COMMAND, selector, client);
-                sendMessage(CD_COMMAND, selector, client);
-                sendMessage(RM_COMMAND, selector, client);
-                sendMessage(COPY_COMMAND, selector, client);
-                sendMessage(CAT_COMMAND, selector, client);
-                sendMessage(CHANGENICK_COMMAND, selector, client);
             } else if ("ls".equals(command)) {
-                sendMessage(getFilesList().concat("\n\r"), selector, client);
-            } else if (command.startsWith("touch ")) {
-                String[] cmd = command.split(" ", 2);
-                if (createFile(cmd[1])) {
-                    channel.write(ByteBuffer.wrap("File already exist or wrong path.\n\r".getBytes(StandardCharsets.UTF_8)));
-                } else {
-                    channel.write(ByteBuffer.wrap("File created successful.\n\r".getBytes(StandardCharsets.UTF_8)));
-                }
-            } else if (command.startsWith("changenick ")) {
-                String[] cmd = command.split(" ", 2);
-                setUser(cmd[1], client);
-            } else if (command.startsWith("cd ")) {
-                String[] cmd = command.split(" ", 2);
-                if (changeDirectory(cmd[1])) {
-                    channel.write(ByteBuffer.wrap("No such directory found.\n\r".getBytes(StandardCharsets.UTF_8)));
-                }
-            } else if (command.startsWith("rm ")) {
-                String[] cmd = command.split(" ", 2);
-                if (removeFileOrDir(cmd[1])) {
-                    channel.write(ByteBuffer.wrap("No such directory or file found.\n\r".getBytes(StandardCharsets.UTF_8)));
-                } else {
-                    channel.write(ByteBuffer.wrap("File or directory removed successful.\n\r".getBytes(StandardCharsets.UTF_8)));
-                }
-            } else if (command.startsWith("copy ")) {
-                String[] cmd = command.split(" ", 3);
-                if (copyFileOrDir(cmd[1], cmd[2])) {
-                    channel.write(ByteBuffer.wrap("No such source or target found.\n\r".getBytes(StandardCharsets.UTF_8)));
-                } else {
-                    channel.write(ByteBuffer.wrap("File or directory copied successful.\n\r".getBytes(StandardCharsets.UTF_8)));
-                }
-            } else if (command.startsWith("cat ")) {
-                String[] cmd = command.split(" ", 2);
-                if (Files.exists(Path.of(currentPath.toString(), cmd[1]))) {
-                    sendMessage(Files.readString(Path.of(currentPath.toString(), cmd[1])) + "\n\r", selector, client);
-                } else {
-                    channel.write(ByteBuffer.wrap("No such file found.\n\r".getBytes(StandardCharsets.UTF_8)));
-                }
-            } else if (command.startsWith("mkdir ")) {
-                String[] cmd = command.split(" ", 2);
-                if (createDir(cmd[1])) {
-                    channel.write(ByteBuffer.wrap("Directory already exist.\n\r".getBytes(StandardCharsets.UTF_8)));
-                } else {
-                    channel.write(ByteBuffer.wrap("Directory created successful.\n\r".getBytes(StandardCharsets.UTF_8)));
-                }
-            }
-        }
-        if (userName.isEmpty()) {
-            channel.write(ByteBuffer.wrap(("Enter nickname: ").getBytes(StandardCharsets.UTF_8)));
-        } else {
-            channel.write(ByteBuffer.wrap((userName + "@" + userRootPathReplacement(currentPath.toString()) + ": ").getBytes(StandardCharsets.UTF_8)));
-        }
-    }
-
-    private boolean createDir(String name) throws IOException {
-        if (!Files.exists(Path.of(currentPath.toString(), name))) {
-            Files.createDirectories(Path.of(currentPath.toString(), name));
-        } else {
-            return true;
-        }
-        return false;
-    }
-
-    private boolean copyFileOrDir(String src, String target) {
-        if (Files.exists(Path.of(userPath.toString(), src))) {
-            try {
-                Files.copy(Path.of(userPath.toString(), src), Path.of(userPath.toString(), target));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        } else {
-            return true;
-        }
-        return false;
-    }
-
-    private boolean removeFileOrDir(String name) {
-        if (Files.exists(Path.of(currentPath.toString(), name))) {
-            try {
-                Files.delete(Path.of(currentPath.toString(), name));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        } else {
-            return true;
-        }
-        return false;
-    }
-
-    private boolean changeDirectory(String path) {
-        if (path.equals("~")) {
-            currentPath = userPath;
-        } else if (path.equals("..")) {
-            currentPath = currentPath.getParent();
-        } else {
-            if (Files.exists(Path.of(currentPath.toString(), path))) {
-                currentPath = Path.of(currentPath.toString(), path);
-            } else {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void setUser(String name, SocketAddress socketAddress){
-        for (String mapKey : clients.keySet()) {
-            if (mapKey.equalsIgnoreCase(name)) {
-                userName = mapKey;
-                userPath = Path.of("server", name);
-                currentPath = userPath;
-                clients.replace(mapKey, socketAddress);
-
-                // наверное лучше эту часть перенести в метод создания пользователя, допустим он когдато будет
-                // а пока что так оставим, чтоб руками не создавать
-                if (!Files.exists(Path.of(userPath.toString()))) {
-                    try {
-                        Files.createDirectory(Path.of(mapKey));
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-                break;
+                sendMessage(getFilesList().concat("\n"), selector, client);
             }
         }
     }
@@ -258,31 +111,11 @@ public class NioTelnetServer {
     }
 
     private String getFilesList() {
-        String[] servers = new File(currentPath.toString()).list();
-        return String.join("\n\r", servers);
+        String[] servers = new File("server").list();
+        return String.join(" ", servers);
     }
-
-    private boolean createFile(String name) {
-        Path path = Path.of(currentPath.toString(), name);
-        if (!Files.exists(path)) {
-            try {
-                Files.createFile(path);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        } else {
-            return true;
-        }
-        return false;
-    }
-
-    public String userRootPathReplacement(String path) {
-        return path.replace(userPath.toString(), "home");
-    }
-
 
     public static void main(String[] args) throws Exception {
         new NioTelnetServer();
-
     }
 }
