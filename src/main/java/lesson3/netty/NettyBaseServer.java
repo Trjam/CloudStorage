@@ -1,6 +1,6 @@
 package lesson3.netty;
 
-import com.polozov.cloudstorage.lesson03.netty.handlers.ChatMessageHandler;
+
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -10,6 +10,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
+
+import lesson3.netty.handlers.StringInputHandler;
 
 public class NettyBaseServer {
     public NettyBaseServer() {
@@ -27,7 +29,7 @@ public class NettyBaseServer {
                             channel.pipeline().addLast(
                                     new StringDecoder(), // in - 1
                                     new StringEncoder(), // out - 1
-                                    new ChatMessageHandler() // in - 2
+                                    new StringInputHandler() // in - 2
                             );
                         }
                     });
