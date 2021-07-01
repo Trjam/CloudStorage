@@ -12,6 +12,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -185,11 +186,32 @@ public class NioTelnetServer {
     }
 
     private boolean copyFileOrDir(String src, String target) {
-        if (Files.exists(Path.of(userPath.toString(), src))) {
-            try {
-                Files.copy(Path.of(userPath.toString(), src), Path.of(userPath.toString(), target));
-            } catch (IOException e) {
-                e.printStackTrace();
+        Path srcDir = Path.of(currentPath.toString(), src);
+        Path targetDir = Path.of(currentPath.toString(), target, srcDir.toFile().getName());
+        if (Files.exists(srcDir)) {
+            if (Files.isDirectory(srcDir)) {
+                if (!Files.exists(targetDir)) {
+                    try {
+                        Files.createDirectory(targetDir);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                String[] files = srcDir.toFile().list();
+                assert files != null;
+                for (String file : files) {
+                    if (Files.isDirectory(Path.of(srcDir.toString(), file))) {
+                        copyFileOrDir(Path.of(src, file).toString(), Path.of(target, srcDir.toFile().getName()).toString());
+                    } else {
+                        copyFileOrDir(Path.of(src, file).toString(), Path.of(target, srcDir.toFile().getName(), file).toString());
+                    }
+                }
+            } else {
+                try {
+                    Files.copy(Path.of(currentPath.toString(), src), Path.of(currentPath.toString(), target), StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         } else {
             return true;
@@ -225,7 +247,7 @@ public class NioTelnetServer {
         return false;
     }
 
-    private void setUser(String name, SocketAddress socketAddress){
+    private void setUser(String name, SocketAddress socketAddress) {
         for (String mapKey : clients.keySet()) {
             if (mapKey.equalsIgnoreCase(name)) {
                 userName = mapKey;
@@ -235,9 +257,9 @@ public class NioTelnetServer {
 
                 // наверное лучше эту часть перенести в метод создания пользователя, допустим он когдато будет
                 // а пока что так оставим, чтоб руками не создавать
-                if (!Files.exists(Path.of(userPath.toString()))) {
+                if (!Files.exists(Path.of("server", mapKey))) {
                     try {
-                        Files.createDirectory(Path.of(mapKey));
+                        Files.createDirectory(Path.of("server", mapKey));
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -259,6 +281,7 @@ public class NioTelnetServer {
 
     private String getFilesList() {
         String[] servers = new File(currentPath.toString()).list();
+        assert servers != null;
         return String.join("\n\r", servers);
     }
 
