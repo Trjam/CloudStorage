@@ -233,7 +233,7 @@ public class StringInputHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void sendMessage(String message, ChannelHandlerContext ctx) throws IOException {
-        ctx.write(message);
+        ctx.write(message).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
         ctx.flush();
         //channels.forEach(c -> c.writeAndFlush(message));
     }
